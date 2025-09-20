@@ -5,16 +5,17 @@
 import type { PrepareOptions, PrepareResult } from "./types";
 
 export async function prepare(options: PrepareOptions): Promise<PrepareResult> {
-  const { mode, context, octokit, githubToken } = options;
+  const { mode, context, octokit, githubToken, token, platform } = options;
 
   console.log(
-    `Preparing with mode: ${mode.name} for event: ${context.eventName}`,
+    `Preparing with mode: ${mode.name} for event: ${context.eventName} on platform: ${platform || "github"}`,
   );
 
-  // Delegate to the mode's prepare method
+  // For now, delegate to the mode's prepare method with GitHub context
+  // TODO: Add proper GitLab mode support
   return mode.prepare({
-    context,
-    octokit,
-    githubToken,
+    context: context as any,
+    octokit: octokit!,
+    githubToken: githubToken || token || "",
   });
 }

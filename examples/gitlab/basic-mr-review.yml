@@ -1,0 +1,119 @@
+# Example GitLab CI configuration for Claude Code Action
+# Copy this to your .gitlab-ci.yml and customize as needed
+
+stages:
+  - claude-review
+
+variables:
+  # Customize these variables as needed
+  CLAUDE_PROMPT: |
+    Please review this merge request and provide feedback on:
+    1. Code quality and best practices
+    2. Potential bugs or security issues
+    3. Performance considerations
+    4. Documentation and readability
+
+  # Optional: Customize Claude behavior
+  TRIGGER_PHRASE: "@claude"
+  USE_STICKY_COMMENT: "true"
+  BOT_NAME: "claude[bot]"
+
+# Template for setup - reuse across jobs
+.claude_setup: &claude_setup
+  image: ubuntu:22.04
+  before_script:
+    # Install dependencies
+    - apt-get update -qq && apt-get install -y -qq curl unzip git
+
+    # Install Bun
+    - curl -fsSL https://bun.sh/install | bash
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - bun --version
+
+    # Clone Claude Code Action
+    - git clone https://github.com/jasonzhouu/claude-code-action.git /tmp/claude-action
+    - cd /tmp/claude-action
+    - bun install
+
+    # Install Claude Code CLI
+    - curl -fsSL https://claude.ai/install.sh | bash -s 1.0.120
+    - export PATH="$HOME/.local/bin:$PATH"
+    - claude --version
+
+# Main Claude review job
+claude_mr_review:
+  <<: *claude_setup
+  stage: claude-review
+  script:
+    # Set up environment
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - export PATH="$HOME/.local/bin:$PATH"
+    - export GITLAB_CI_MODE="true"
+    - export PLATFORM="gitlab"
+
+    # Change to claude-action directory
+    - cd /tmp/claude-action
+
+    # Run Claude preparation
+    - bun run src/entrypoints/prepare.ts
+
+    # Execute Claude if triggered
+    - |
+      if [ "${CONTAINS_TRIGGER:-false}" = "true" ]; then
+        echo "Running Claude Code execution..."
+        cd base-action && bun install && cd ..
+        bun run base-action/src/index.ts
+      else
+        echo "No trigger detected, skipping Claude execution"
+      fi
+
+  # Run on merge requests
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+      when: always
+    - when: never
+
+  # Allow job to fail without failing the pipeline
+  allow_failure: true
+
+  # Artifacts for debugging
+  artifacts:
+    when: always
+    paths:
+      - claude-output/
+    expire_in: 1 week
+
+# Manual trigger for testing
+claude_manual:
+  <<: *claude_setup
+  stage: claude-review
+  script:
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - export PATH="$HOME/.local/bin:$PATH"
+    - export GITLAB_CI_MODE="true"
+    - export PLATFORM="gitlab"
+    - export CLAUDE_MANUAL_TRIGGER="true"
+
+    # Use custom prompt if provided, otherwise use default
+    - |
+      if [ -z "$CLAUDE_CUSTOM_PROMPT" ]; then
+        export PROMPT="$CLAUDE_PROMPT"
+      else
+        export PROMPT="$CLAUDE_CUSTOM_PROMPT"
+      fi
+
+    - cd /tmp/claude-action
+    - bun run src/entrypoints/prepare.ts
+    - cd base-action && bun install && cd ..
+    - bun run base-action/src/index.ts
+
+  # Manual execution only
+  when: manual
+  allow_failure: true
+
+  # Artifacts for results
+  artifacts:
+    when: always
+    paths:
+      - claude-output/
+    expire_in: 1 week
