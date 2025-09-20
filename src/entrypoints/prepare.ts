@@ -23,45 +23,44 @@ async function run() {
 
     // Detect platform and parse appropriate context
     const isGitLab = isGitLabCI();
-    
+
     if (isGitLab) {
       // GitLab CI mode
       console.log("Detected GitLab CI environment");
       const context = parseGitLabContext();
-      
+
       // Auto-detect mode based on context
       const mode = getMode(context as any); // Type compatibility for now
-      
+
       // Setup GitLab token
       const gitlabToken = await setupGitLabToken();
-      
+
       // For GitLab, we'll assume permissions are handled by the CI token
       // TODO: Add GitLab-specific permission checking if needed
-      
+
       // Check trigger conditions
       const containsTrigger = mode.shouldTrigger(context as any);
-      
+
       if (!containsTrigger) {
         console.log("No trigger condition met, skipping Claude execution");
         core.setOutput("contains_trigger", "false");
         return;
       }
-      
+
       console.log("Trigger condition met, preparing GitLab execution");
       core.setOutput("contains_trigger", "true");
-      
+
       // Prepare for GitLab execution
       await prepare({
         token: gitlabToken,
         context: context as any,
         mode,
-        platform: "gitlab"
+        platform: "gitlab",
       });
-      
     } else {
       // GitHub Actions mode (existing logic)
       console.log("Detected GitHub Actions environment");
-      
+
       // Parse GitHub context first to enable mode detection
       const context = parseGitHubContext();
 
@@ -113,7 +112,7 @@ async function run() {
         octokit,
         mode,
         githubToken,
-        platform: "github"
+        platform: "github",
       });
 
       // MCP config is handled by individual modes (tag/agent) and included in their claude_args output

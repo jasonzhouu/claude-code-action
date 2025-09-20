@@ -1,0 +1,248 @@
+# Advanced GitLab CI configuration with multiple Claude workflows
+# This example shows more advanced usage patterns
+
+stages:
+  - review
+  - analysis
+  - docs
+
+variables:
+  # Global Claude settings
+  BOT_NAME: "claude[bot]"
+  USE_STICKY_COMMENT: "true"
+  BRANCH_PREFIX: "claude/"
+
+# Shared setup template
+.claude_setup: &claude_setup
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl unzip git jq
+    - curl -fsSL https://bun.sh/install | bash
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - git clone https://github.com/jasonzhouu/claude-code-action.git /tmp/claude-action
+    - cd /tmp/claude-action && bun install
+    - curl -fsSL https://claude.ai/install.sh | bash -s 1.0.120
+    - export PATH="$HOME/.local/bin:$PATH"
+
+# Security-focused review for merge requests
+security_review:
+  <<: *claude_setup
+  stage: review
+  variables:
+    CLAUDE_PROMPT: |
+      Please conduct a thorough security review of this merge request:
+
+      1. **Authentication & Authorization**: Check for proper authentication mechanisms
+      2. **Input Validation**: Ensure all user inputs are properly validated and sanitized
+      3. **SQL Injection**: Look for potential SQL injection vulnerabilities
+      4. **XSS Prevention**: Check for cross-site scripting vulnerabilities
+      5. **CSRF Protection**: Verify CSRF protection where needed
+      6. **Secrets Management**: Ensure no secrets are hardcoded
+      7. **Access Controls**: Verify proper access control implementations
+      8. **Error Handling**: Check that errors don't leak sensitive information
+
+      For each finding, provide:
+      - Severity level (Critical/High/Medium/Low)
+      - Specific line numbers and code snippets
+      - Detailed explanation of the issue
+      - Recommended fixes with code examples
+  script:
+    - export PATH="$HOME/.bun/bin:$PATH:$HOME/.local/bin"
+    - export GITLAB_CI_MODE="true"
+    - export PLATFORM="gitlab"
+    - cd /tmp/claude-action
+    - bun run src/entrypoints/prepare.ts
+    - |
+      if [ "${CONTAINS_TRIGGER:-false}" = "true" ]; then
+        cd base-action && bun install && cd ..
+        bun run base-action/src/index.ts
+      fi
+  rules:
+    - if: $CI_MERGE_REQUEST_IID && $CI_MERGE_REQUEST_LABELS =~ /security/
+      when: always
+    - if: $CI_MERGE_REQUEST_IID
+      when: manual
+  allow_failure: true
+
+# Code quality and performance review
+quality_review:
+  <<: *claude_setup
+  stage: review
+  variables:
+    CLAUDE_PROMPT: |
+      Please review this merge request for code quality and performance:
+
+      **Code Quality:**
+      - Code organization and structure
+      - Naming conventions and readability
+      - Code duplication and reusability
+      - Error handling and edge cases
+      - Testing coverage and quality
+
+      **Performance:**
+      - Algorithm efficiency and complexity
+      - Database query optimization
+      - Memory usage patterns
+      - Caching opportunities
+      - Network request optimization
+
+      **Best Practices:**
+      - Language-specific best practices
+      - Design patterns usage
+      - SOLID principles adherence
+      - Documentation quality
+
+      Provide specific suggestions with code examples where applicable.
+  script:
+    - export PATH="$HOME/.bun/bin:$PATH:$HOME/.local/bin"
+    - export GITLAB_CI_MODE="true"
+    - export PLATFORM="gitlab"
+    - cd /tmp/claude-action
+    - bun run src/entrypoints/prepare.ts
+    - |
+      if [ "${CONTAINS_TRIGGER:-false}" = "true" ]; then
+        cd base-action && bun install && cd ..
+        bun run base-action/src/index.ts
+      fi
+  rules:
+    - if: $CI_MERGE_REQUEST_IID && $CI_MERGE_REQUEST_LABELS =~ /review/
+      when: always
+    - if: $CI_MERGE_REQUEST_IID
+      when: manual
+  allow_failure: true
+
+# Documentation review and generation
+docs_review:
+  <<: *claude_setup
+  stage: docs
+  variables:
+    CLAUDE_PROMPT: |
+      Please review and improve the documentation in this merge request:
+
+      **Documentation Review:**
+      - Check existing documentation for accuracy and completeness
+      - Identify missing documentation for new features
+      - Review code comments for clarity and usefulness
+      - Verify API documentation matches implementation
+
+      **Documentation Generation:**
+      - Generate missing README sections
+      - Create or update API documentation
+      - Add inline code comments where needed
+      - Suggest documentation improvements
+
+      **Standards Compliance:**
+      - Follow project documentation standards
+      - Ensure consistent formatting and style
+      - Include usage examples where appropriate
+      - Add troubleshooting sections for complex features
+
+      Please create or update documentation files as needed.
+  script:
+    - export PATH="$HOME/.bun/bin:$PATH:$HOME/.local/bin"
+    - export GITLAB_CI_MODE="true"
+    - export PLATFORM="gitlab"
+    - export USE_COMMIT_SIGNING="true" # Enable file operations
+    - cd /tmp/claude-action
+    - bun run src/entrypoints/prepare.ts
+    - |
+      if [ "${CONTAINS_TRIGGER:-false}" = "true" ]; then
+        cd base-action && bun install && cd ..
+        bun run base-action/src/index.ts
+      fi
+  rules:
+    - if: $CI_MERGE_REQUEST_IID && $CI_MERGE_REQUEST_LABELS =~ /documentation/
+      when: always
+    - when: manual
+  allow_failure: true
+
+# Scheduled weekly architecture review
+architecture_analysis:
+  <<: *claude_setup
+  stage: analysis
+  variables:
+    CLAUDE_PROMPT: |
+      Please conduct a comprehensive architecture analysis of this repository:
+
+      **Architecture Review:**
+      - Overall system design and architecture patterns
+      - Module organization and dependencies
+      - Data flow and communication patterns
+      - Scalability considerations
+      - Maintainability assessment
+
+      **Technical Debt Analysis:**
+      - Identify areas of technical debt
+      - Suggest refactoring opportunities
+      - Highlight outdated dependencies or patterns
+      - Recommend modernization strategies
+
+      **Improvement Recommendations:**
+      - Suggest architectural improvements
+      - Recommend new tools or technologies
+      - Identify optimization opportunities
+      - Propose development workflow improvements
+
+      Create a detailed report with actionable recommendations.
+  script:
+    - export PATH="$HOME/.bun/bin:$PATH:$HOME/.local/bin"
+    - export GITLAB_CI_MODE="true"
+    - export PLATFORM="gitlab"
+    - export CLAUDE_MANUAL_TRIGGER="true"
+    - cd /tmp/claude-action
+    - bun run src/entrypoints/prepare.ts
+    - cd base-action && bun install && cd ..
+    - bun run base-action/src/index.ts
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always
+    - when: manual
+  allow_failure: true
+  artifacts:
+    when: always
+    paths:
+      - claude-output/
+    expire_in: 4 weeks
+
+# Emergency security scan (can be triggered manually)
+security_scan:
+  <<: *claude_setup
+  stage: review
+  variables:
+    CLAUDE_PROMPT: |
+      URGENT: Please conduct an immediate security scan of this repository:
+
+      **Critical Security Issues:**
+      - Scan for known vulnerability patterns
+      - Check for exposed secrets or credentials
+      - Identify unsafe cryptographic practices
+      - Look for injection vulnerability patterns
+      - Check for insecure configurations
+
+      **Compliance Check:**
+      - OWASP Top 10 compliance
+      - Security best practices adherence
+      - Privacy and data protection considerations
+
+      **Immediate Actions:**
+      - Flag any critical security issues
+      - Provide immediate mitigation steps
+      - Suggest security patches or fixes
+
+      This is an urgent security review - prioritize critical findings.
+  script:
+    - export PATH="$HOME/.bun/bin:$PATH:$HOME/.local/bin"
+    - export GITLAB_CI_MODE="true"
+    - export PLATFORM="gitlab"
+    - export CLAUDE_MANUAL_TRIGGER="true"
+    - cd /tmp/claude-action
+    - bun run src/entrypoints/prepare.ts
+    - cd base-action && bun install && cd ..
+    - bun run base-action/src/index.ts
+  when: manual
+  allow_failure: false # Fail pipeline if security issues found
+  artifacts:
+    when: always
+    paths:
+      - claude-output/
+    expire_in: 12 weeks

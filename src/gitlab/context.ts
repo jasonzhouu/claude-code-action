@@ -136,12 +136,20 @@ export type GitLabAutomationContext = BaseGitLabContext & {
 export type GitLabContext = GitLabEntityContext | GitLabAutomationContext;
 
 // Type guards
-export function isEntityContext(context: GitLabContext): context is GitLabEntityContext {
-  return GITLAB_ENTITY_EVENT_NAMES.includes(context.eventName as GitLabEntityEventName);
+export function isEntityContext(
+  context: GitLabContext,
+): context is GitLabEntityContext {
+  return GITLAB_ENTITY_EVENT_NAMES.includes(
+    context.eventName as GitLabEntityEventName,
+  );
 }
 
-export function isAutomationContext(context: GitLabContext): context is GitLabAutomationContext {
-  return GITLAB_AUTOMATION_EVENT_NAMES.includes(context.eventName as GitLabAutomationEventName);
+export function isAutomationContext(
+  context: GitLabContext,
+): context is GitLabAutomationContext {
+  return GITLAB_AUTOMATION_EVENT_NAMES.includes(
+    context.eventName as GitLabAutomationEventName,
+  );
 }
 
 // Default bot configuration for GitLab
@@ -157,7 +165,10 @@ export function parseGitLabContext(): GitLabContext {
       path: process.env.CI_PROJECT_NAME!,
       full_path: process.env.CI_PROJECT_PATH!,
     },
-    actor: process.env.GITLAB_USER_LOGIN || process.env.CI_COMMIT_AUTHOR || "unknown",
+    actor:
+      process.env.GITLAB_USER_LOGIN ||
+      process.env.CI_COMMIT_AUTHOR ||
+      "unknown",
     inputs: {
       prompt: process.env.PROMPT || process.env.CLAUDE_PROMPT || "",
       triggerPhrase: process.env.TRIGGER_PHRASE ?? "@claude",
@@ -252,7 +263,9 @@ export function parseGitLabContext(): GitLabContext {
 
     return {
       ...commonFields,
-      eventName: (process.env.CI_PIPELINE_SOURCE as GitLabAutomationEventName) || "manual",
+      eventName:
+        (process.env.CI_PIPELINE_SOURCE as GitLabAutomationEventName) ||
+        "manual",
       payload,
     };
   }
@@ -260,5 +273,7 @@ export function parseGitLabContext(): GitLabContext {
 
 // Utility function to detect if we're running in GitLab CI
 export function isGitLabCI(): boolean {
-  return process.env.GITLAB_CI === "true" || process.env.GITLAB_CI_MODE === "true";
+  return (
+    process.env.GITLAB_CI === "true" || process.env.GITLAB_CI_MODE === "true"
+  );
 }

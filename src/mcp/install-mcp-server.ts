@@ -108,7 +108,8 @@ export async function prepareMcpConfig(
     // Configure servers based on platform
     if (isGitLabMode) {
       // GitLab CI mode
-      const shouldIncludeGitLabCommentServer = !isAgentMode || hasGitLabCommentTools;
+      const shouldIncludeGitLabCommentServer =
+        !isAgentMode || hasGitLabCommentTools;
 
       if (shouldIncludeGitLabCommentServer) {
         baseMcpConfig.mcpServers.gitlab_comment = {
@@ -119,8 +120,10 @@ export async function prepareMcpConfig(
           ],
           env: {
             GITLAB_TOKEN: gitlabToken,
-            GITLAB_PROJECT_ID: process.env.CI_PROJECT_ID || process.env.GITLAB_PROJECT_ID,
-            GITLAB_PROJECT_PATH: process.env.CI_PROJECT_PATH || process.env.GITLAB_PROJECT_PATH,
+            GITLAB_PROJECT_ID:
+              process.env.CI_PROJECT_ID || process.env.GITLAB_PROJECT_ID,
+            GITLAB_PROJECT_PATH:
+              process.env.CI_PROJECT_PATH || process.env.GITLAB_PROJECT_PATH,
             ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
             CI_MERGE_REQUEST_IID: process.env.CI_MERGE_REQUEST_IID,
             GITLAB_ISSUE_IID: process.env.GITLAB_ISSUE_IID,
@@ -139,8 +142,10 @@ export async function prepareMcpConfig(
           ],
           env: {
             GITLAB_TOKEN: gitlabToken,
-            GITLAB_PROJECT_ID: process.env.CI_PROJECT_ID || process.env.GITLAB_PROJECT_ID,
-            GITLAB_PROJECT_PATH: process.env.CI_PROJECT_PATH || process.env.GITLAB_PROJECT_PATH,
+            GITLAB_PROJECT_ID:
+              process.env.CI_PROJECT_ID || process.env.GITLAB_PROJECT_ID,
+            GITLAB_PROJECT_PATH:
+              process.env.CI_PROJECT_PATH || process.env.GITLAB_PROJECT_PATH,
             BRANCH_NAME: branch,
             BASE_BRANCH: baseBranch,
             REPO_DIR: process.env.CI_PROJECT_DIR || process.cwd(),

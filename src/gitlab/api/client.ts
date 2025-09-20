@@ -12,13 +12,13 @@ export class GitLabClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const response = await fetch(url, {
       ...options,
       headers: {
-        "Authorization": `Bearer ${this.token}`,
+        Authorization: `Bearer ${this.token}`,
         "Content-Type": "application/json",
         ...options.headers,
       },
@@ -27,7 +27,7 @@ export class GitLabClient {
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(
-        `GitLab API request failed: ${response.status} ${response.statusText}\n${errorText}`
+        `GitLab API request failed: ${response.status} ${response.statusText}\n${errorText}`,
       );
     }
 
@@ -41,32 +41,37 @@ export class GitLabClient {
 
   // Merge Request operations
   async getMergeRequest(projectId: string | number, mergeRequestIid: number) {
-    return this.request(`/projects/${projectId}/merge_requests/${mergeRequestIid}`);
+    return this.request(
+      `/projects/${projectId}/merge_requests/${mergeRequestIid}`,
+    );
   }
 
   async createMergeRequestNote(
     projectId: string | number,
     mergeRequestIid: number,
-    body: string
+    body: string,
   ) {
-    return this.request(`/projects/${projectId}/merge_requests/${mergeRequestIid}/notes`, {
-      method: "POST",
-      body: JSON.stringify({ body }),
-    });
+    return this.request(
+      `/projects/${projectId}/merge_requests/${mergeRequestIid}/notes`,
+      {
+        method: "POST",
+        body: JSON.stringify({ body }),
+      },
+    );
   }
 
   async updateMergeRequestNote(
     projectId: string | number,
     mergeRequestIid: number,
     noteId: number,
-    body: string
+    body: string,
   ) {
     return this.request(
       `/projects/${projectId}/merge_requests/${mergeRequestIid}/notes/${noteId}`,
       {
         method: "PUT",
         body: JSON.stringify({ body }),
-      }
+      },
     );
   }
 
@@ -78,7 +83,7 @@ export class GitLabClient {
   async createIssueNote(
     projectId: string | number,
     issueIid: number,
-    body: string
+    body: string,
   ) {
     return this.request(`/projects/${projectId}/issues/${issueIid}/notes`, {
       method: "POST",
@@ -90,22 +95,27 @@ export class GitLabClient {
     projectId: string | number,
     issueIid: number,
     noteId: number,
-    body: string
+    body: string,
   ) {
-    return this.request(`/projects/${projectId}/issues/${issueIid}/notes/${noteId}`, {
-      method: "PUT",
-      body: JSON.stringify({ body }),
-    });
+    return this.request(
+      `/projects/${projectId}/issues/${issueIid}/notes/${noteId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ body }),
+      },
+    );
   }
 
   // File operations
   async getFile(
     projectId: string | number,
     filePath: string,
-    ref: string = "main"
+    ref: string = "main",
   ) {
     const encodedPath = encodeURIComponent(filePath);
-    return this.request(`/projects/${projectId}/repository/files/${encodedPath}?ref=${ref}`);
+    return this.request(
+      `/projects/${projectId}/repository/files/${encodedPath}?ref=${ref}`,
+    );
   }
 
   async createFile(
@@ -113,18 +123,21 @@ export class GitLabClient {
     filePath: string,
     content: string,
     commitMessage: string,
-    branch: string = "main"
+    branch: string = "main",
   ) {
     const encodedPath = encodeURIComponent(filePath);
-    return this.request(`/projects/${projectId}/repository/files/${encodedPath}`, {
-      method: "POST",
-      body: JSON.stringify({
-        content,
-        commit_message: commitMessage,
-        branch,
-        encoding: "text",
-      }),
-    });
+    return this.request(
+      `/projects/${projectId}/repository/files/${encodedPath}`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          content,
+          commit_message: commitMessage,
+          branch,
+          encoding: "text",
+        }),
+      },
+    );
   }
 
   async updateFile(
@@ -132,29 +145,34 @@ export class GitLabClient {
     filePath: string,
     content: string,
     commitMessage: string,
-    branch: string = "main"
+    branch: string = "main",
   ) {
     const encodedPath = encodeURIComponent(filePath);
-    return this.request(`/projects/${projectId}/repository/files/${encodedPath}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        content,
-        commit_message: commitMessage,
-        branch,
-        encoding: "text",
-      }),
-    });
+    return this.request(
+      `/projects/${projectId}/repository/files/${encodedPath}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          content,
+          commit_message: commitMessage,
+          branch,
+          encoding: "text",
+        }),
+      },
+    );
   }
 
   // Branch operations
   async getBranch(projectId: string | number, branchName: string) {
-    return this.request(`/projects/${projectId}/repository/branches/${branchName}`);
+    return this.request(
+      `/projects/${projectId}/repository/branches/${branchName}`,
+    );
   }
 
   async createBranch(
     projectId: string | number,
     branchName: string,
-    ref: string = "main"
+    ref: string = "main",
   ) {
     return this.request(`/projects/${projectId}/repository/branches`, {
       method: "POST",
@@ -175,6 +193,9 @@ export class GitLabClient {
   }
 }
 
-export function createGitLabClient(token: string, baseUrl?: string): GitLabClient {
+export function createGitLabClient(
+  token: string,
+  baseUrl?: string,
+): GitLabClient {
   return new GitLabClient(token, baseUrl);
 }

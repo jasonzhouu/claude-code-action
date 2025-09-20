@@ -9,11 +9,12 @@ import { sanitizeContent } from "../github/utils/sanitizer"; // Reuse sanitizer
 
 // Get repository information from environment variables
 const PROJECT_ID = process.env.GITLAB_PROJECT_ID || process.env.CI_PROJECT_ID;
-const PROJECT_PATH = process.env.GITLAB_PROJECT_PATH || process.env.CI_PROJECT_PATH;
+const PROJECT_PATH =
+  process.env.GITLAB_PROJECT_PATH || process.env.CI_PROJECT_PATH;
 
 if (!PROJECT_ID || !PROJECT_PATH) {
   console.error(
-    "Error: GITLAB_PROJECT_ID and GITLAB_PROJECT_PATH environment variables are required"
+    "Error: GITLAB_PROJECT_ID and GITLAB_PROJECT_PATH environment variables are required",
   );
   process.exit(1);
 }
@@ -33,7 +34,9 @@ server.tool(
     try {
       const gitlabToken = process.env.GITLAB_TOKEN || process.env.CI_JOB_TOKEN;
       const claudeCommentId = process.env.CLAUDE_COMMENT_ID;
-      const mrIid = process.env.CI_MERGE_REQUEST_IID || process.env.GITLAB_MERGE_REQUEST_IID;
+      const mrIid =
+        process.env.CI_MERGE_REQUEST_IID ||
+        process.env.GITLAB_MERGE_REQUEST_IID;
       const issueIid = process.env.GITLAB_ISSUE_IID;
 
       if (!gitlabToken) {
@@ -56,7 +59,7 @@ server.tool(
           projectId,
           parseInt(mrIid, 10),
           commentId,
-          sanitizedBody
+          sanitizedBody,
         );
       } else if (issueIid) {
         // Update issue comment
@@ -64,10 +67,12 @@ server.tool(
           projectId,
           parseInt(issueIid, 10),
           commentId,
-          sanitizedBody
+          sanitizedBody,
         );
       } else {
-        throw new Error("Neither merge request IID nor issue IID found in environment");
+        throw new Error(
+          "Neither merge request IID nor issue IID found in environment",
+        );
       }
 
       return {
@@ -79,7 +84,8 @@ server.tool(
         ],
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         content: [
           {
@@ -103,7 +109,9 @@ server.tool(
   async ({ body }) => {
     try {
       const gitlabToken = process.env.GITLAB_TOKEN || process.env.CI_JOB_TOKEN;
-      const mrIid = process.env.CI_MERGE_REQUEST_IID || process.env.GITLAB_MERGE_REQUEST_IID;
+      const mrIid =
+        process.env.CI_MERGE_REQUEST_IID ||
+        process.env.GITLAB_MERGE_REQUEST_IID;
       const issueIid = process.env.GITLAB_ISSUE_IID;
 
       if (!gitlabToken) {
@@ -121,21 +129,23 @@ server.tool(
         result = await gitlab.createMergeRequestNote(
           projectId,
           parseInt(mrIid, 10),
-          sanitizedBody
+          sanitizedBody,
         );
       } else if (issueIid) {
         // Create issue comment
         result = await gitlab.createIssueNote(
           projectId,
           parseInt(issueIid, 10),
-          sanitizedBody
+          sanitizedBody,
         );
       } else {
-        throw new Error("Neither merge request IID nor issue IID found in environment");
+        throw new Error(
+          "Neither merge request IID nor issue IID found in environment",
+        );
       }
 
       // Store comment ID for future updates
-      if (result && typeof result === 'object' && 'id' in result) {
+      if (result && typeof result === "object" && "id" in result) {
         process.env.CLAUDE_COMMENT_ID = String(result.id);
       }
 
@@ -143,12 +153,13 @@ server.tool(
         content: [
           {
             type: "text",
-            text: `Successfully created GitLab comment with ID ${result?.id || 'unknown'}`,
+            text: `Successfully created GitLab comment with ID ${result?.id || "unknown"}`,
           },
         ],
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         content: [
           {

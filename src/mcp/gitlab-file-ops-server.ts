@@ -8,12 +8,13 @@ import { createGitLabClient } from "../gitlab/api/client";
 
 // Get repository information from environment variables
 const PROJECT_ID = process.env.GITLAB_PROJECT_ID || process.env.CI_PROJECT_ID;
-const PROJECT_PATH = process.env.GITLAB_PROJECT_PATH || process.env.CI_PROJECT_PATH;
+const PROJECT_PATH =
+  process.env.GITLAB_PROJECT_PATH || process.env.CI_PROJECT_PATH;
 const BRANCH_NAME = process.env.BRANCH_NAME || process.env.CI_COMMIT_REF_NAME;
 
 if (!PROJECT_ID || !PROJECT_PATH || !BRANCH_NAME) {
   console.error(
-    "Error: GITLAB_PROJECT_ID, GITLAB_PROJECT_PATH, and BRANCH_NAME environment variables are required"
+    "Error: GITLAB_PROJECT_ID, GITLAB_PROJECT_PATH, and BRANCH_NAME environment variables are required",
   );
   process.exit(1);
 }
@@ -28,7 +29,7 @@ async function getOrCreateBranch(
   gitlab: any,
   projectId: string,
   branchName: string,
-  baseBranch: string = "main"
+  baseBranch: string = "main",
 ): Promise<void> {
   try {
     // Try to get the branch
@@ -54,7 +55,7 @@ server.tool(
         z.object({
           path: z.string(),
           content: z.string(),
-        })
+        }),
       )
       .describe("Array of files to write with their paths and content"),
     commitMessage: z
@@ -65,7 +66,7 @@ server.tool(
   async ({ files, commitMessage }) => {
     const projectId = PROJECT_ID;
     const branch = BRANCH_NAME;
-    
+
     try {
       const gitlabToken = process.env.GITLAB_TOKEN || process.env.CI_JOB_TOKEN;
       if (!gitlabToken) {
@@ -80,7 +81,8 @@ server.tool(
       }));
 
       // Ensure branch exists
-      const baseBranch = process.env.BASE_BRANCH || process.env.CI_DEFAULT_BRANCH || "main";
+      const baseBranch =
+        process.env.BASE_BRANCH || process.env.CI_DEFAULT_BRANCH || "main";
       await getOrCreateBranch(gitlab, projectId, branch, baseBranch);
 
       // Process each file
@@ -105,7 +107,7 @@ server.tool(
               file.path,
               file.content,
               `${commitMessage} - Update ${file.path}`,
-              branch
+              branch,
             );
           } else {
             // Create new file
@@ -114,7 +116,7 @@ server.tool(
               file.path,
               file.content,
               `${commitMessage} - Create ${file.path}`,
-              branch
+              branch,
             );
           }
 
@@ -128,19 +130,22 @@ server.tool(
           results.push({
             path: file.path,
             status: "error",
-            error: fileError instanceof Error ? fileError.message : String(fileError),
+            error:
+              fileError instanceof Error
+                ? fileError.message
+                : String(fileError),
           });
         }
       }
 
-      const successCount = results.filter(r => r.status !== "error").length;
-      const errorCount = results.filter(r => r.status === "error").length;
+      const successCount = results.filter((r) => r.status !== "error").length;
+      const errorCount = results.filter((r) => r.status === "error").length;
 
       return {
         content: [
           {
             type: "text",
-            text: `Successfully processed ${successCount} file(s) on branch ${branch}. ${errorCount > 0 ? `${errorCount} error(s) occurred.` : ""}\n\nResults:\n${results.map(r => `- ${r.path}: ${r.status}${r.error ? ` (${r.error})` : ""}`).join("\n")}`,
+            text: `Successfully processed ${successCount} file(s) on branch ${branch}. ${errorCount > 0 ? `${errorCount} error(s) occurred.` : ""}\n\nResults:\n${results.map((r) => `- ${r.path}: ${r.status}${r.error ? ` (${r.error})` : ""}`).join("\n")}`,
           },
         ],
         files_written: successCount,
@@ -149,7 +154,8 @@ server.tool(
         project_id: projectId,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error("Error in write_files_to_branch:", error);
       return {
         content: [
@@ -162,7 +168,7 @@ server.tool(
         isError: true,
       };
     }
-  }
+  },
 );
 
 server.tool(
@@ -170,7 +176,10 @@ server.tool(
   "Read a file from the GitLab repository",
   {
     path: z.string().describe("Path to the file in the repository"),
-    ref: z.string().optional().describe("Git reference (branch, tag, or commit SHA) to read from"),
+    ref: z
+      .string()
+      .optional()
+      .describe("Git reference (branch, tag, or commit SHA) to read from"),
   },
   async ({ path, ref }) => {
     try {
@@ -183,14 +192,14 @@ server.tool(
       const projectId = PROJECT_ID;
       const gitRef = ref || BRANCH_NAME || "main";
 
-      const file = await gitlab.getFile(projectId, path, gitRef) as any;
+      const file = (await gitlab.getFile(projectId, path, gitRef)) as any;
 
-      if (file && 'content' in file && 'encoding' in file) {
+      if (file && "content" in file && "encoding" in file) {
         let content = file.content;
-        
+
         // Decode base64 if needed
-        if (file.encoding === 'base64') {
-          content = Buffer.from(content as string, 'base64').toString('utf-8');
+        if (file.encoding === "base64") {
+          content = Buffer.from(content as string, "base64").toString("utf-8");
         }
 
         return {
@@ -208,7 +217,8 @@ server.tool(
         throw new Error("Unexpected file format from GitLab API");
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         content: [
           {
@@ -220,7 +230,7 @@ server.tool(
         isError: true,
       };
     }
-  }
+  },
 );
 
 server.tool(
@@ -242,26 +252,31 @@ server.tool(
       const projectId = PROJECT_ID;
 
       // Create merge request using direct API call since our simple client doesn't have this method
-      const response = await fetch(`${GITLAB_API_URL}/projects/${projectId}/merge_requests`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${gitlabToken}`,
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${GITLAB_API_URL}/projects/${projectId}/merge_requests`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${gitlabToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            source_branch: sourceBranch,
+            target_branch: targetBranch,
+            title: title,
+            description: description || "",
+          }),
         },
-        body: JSON.stringify({
-          source_branch: sourceBranch,
-          target_branch: targetBranch,
-          title: title,
-          description: description || "",
-        }),
-      });
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to create merge request: ${response.status} ${response.statusText}\n${errorText}`);
+        throw new Error(
+          `Failed to create merge request: ${response.status} ${response.statusText}\n${errorText}`,
+        );
       }
 
-      const mr = await response.json() as any;
+      const mr = (await response.json()) as any;
 
       return {
         content: [
@@ -276,7 +291,8 @@ server.tool(
         target_branch: targetBranch,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         content: [
           {
@@ -288,7 +304,7 @@ server.tool(
         isError: true,
       };
     }
-  }
+  },
 );
 
 async function runServer() {
