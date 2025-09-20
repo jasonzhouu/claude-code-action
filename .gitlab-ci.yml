@@ -1,0 +1,143 @@
+# GitLab CI configuration for Claude Code Action
+# This configuration provides GitLab CI equivalent functionality to the GitHub Action
+
+stages:
+  - prepare
+  - execute
+  - cleanup
+
+variables:
+  # Default values (can be overridden in CI/CD variables)
+  TRIGGER_PHRASE: "@claude"
+  LABEL_TRIGGER: "claude"
+  BRANCH_PREFIX: "claude/"
+  USE_STICKY_COMMENT: "false"
+  USE_COMMIT_SIGNING: "false"
+  BOT_NAME: "claude[bot]"
+  TRACK_PROGRESS: "false"
+  BUN_VERSION: "1.2.11"
+
+# Template for common setup steps
+.setup_template: &setup_template
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl unzip git
+    # Install Bun
+    - curl -fsSL https://bun.sh/install | bash
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - bun --version
+    # Install dependencies
+    - bun install
+    # Install Claude Code CLI
+    - curl -fsSL https://claude.ai/install.sh | bash -s 1.0.120
+    - export PATH="$HOME/.local/bin:$PATH"
+
+# Prepare stage - equivalent to GitHub Action's prepare step
+prepare_claude:
+  <<: *setup_template
+  stage: prepare
+  script:
+    - export PATH="$HOME/.bun/bin:$PATH"
+    # Set GitLab-specific environment variables
+    - export GITLAB_CI_MODE="true"
+    - export GITLAB_PROJECT_ID="$CI_PROJECT_ID"
+    - export GITLAB_PROJECT_PATH="$CI_PROJECT_PATH"
+    - export GITLAB_MERGE_REQUEST_IID="$CI_MERGE_REQUEST_IID"
+    - export GITLAB_ISSUE_IID="$CI_ISSUE_IID"
+    - export GITLAB_PIPELINE_ID="$CI_PIPELINE_ID"
+    - export GITLAB_JOB_ID="$CI_JOB_ID"
+    # Run preparation logic
+    - bun run src/entrypoints/prepare.ts
+  artifacts:
+    paths:
+      - claude-prompts/
+      - .claude-config/
+    expire_in: 1 hour
+  only:
+    variables:
+      # Only run on merge request events, issue events, or manual triggers
+      - $CI_MERGE_REQUEST_IID
+      - $CI_ISSUE_IID
+      - $CLAUDE_MANUAL_TRIGGER
+
+# Execute Claude Code - equivalent to GitHub Action's main execution
+execute_claude:
+  <<: *setup_template
+  stage: execute
+  dependencies:
+    - prepare_claude
+  script:
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - export PATH="$HOME/.local/bin:$PATH"
+    # Set platform detection
+    - export GITLAB_CI_MODE="true"
+    - export PLATFORM="gitlab"
+    # Set GitLab-specific environment variables
+    - export GITLAB_PROJECT_ID="$CI_PROJECT_ID"
+    - export GITLAB_PROJECT_PATH="$CI_PROJECT_PATH"
+    - export GITLAB_MERGE_REQUEST_IID="$CI_MERGE_REQUEST_IID"
+    - export GITLAB_ISSUE_IID="$CI_ISSUE_IID"
+    - export GITLAB_PIPELINE_ID="$CI_PIPELINE_ID"
+    - export GITLAB_JOB_ID="$CI_JOB_ID"
+    - export GITLAB_API_URL="${CI_API_V4_URL}"
+    - export GITLAB_SERVER_URL="${CI_SERVER_URL}"
+    # Run base-action equivalent
+    - cd base-action && bun install && cd ..
+    - bun run base-action/src/index.ts
+  artifacts:
+    paths:
+      - claude-output/
+    reports:
+      junit: claude-output/test-results.xml
+    expire_in: 1 week
+  only:
+    variables:
+      - $CI_MERGE_REQUEST_IID
+      - $CI_ISSUE_IID
+      - $CLAUDE_MANUAL_TRIGGER
+
+# Update comments and cleanup
+update_comments:
+  <<: *setup_template
+  stage: cleanup
+  dependencies:
+    - prepare_claude
+    - execute_claude
+  script:
+    - export PATH="$HOME/.bun/bin:$PATH"
+    # Set GitLab-specific environment variables
+    - export GITLAB_CI_MODE="true"
+    - export PLATFORM="gitlab"
+    - export GITLAB_PROJECT_ID="$CI_PROJECT_ID"
+    - export GITLAB_PROJECT_PATH="$CI_PROJECT_PATH"
+    - export GITLAB_MERGE_REQUEST_IID="$CI_MERGE_REQUEST_IID"
+    - export GITLAB_ISSUE_IID="$CI_ISSUE_IID"
+    - export GITLAB_PIPELINE_ID="$CI_PIPELINE_ID"
+    - export GITLAB_JOB_ID="$CI_JOB_ID"
+    # Update comment with job link
+    - bun run src/entrypoints/update-comment-link.ts
+  when: always
+  only:
+    variables:
+      - $CI_MERGE_REQUEST_IID
+      - $CI_ISSUE_IID
+      - $CLAUDE_MANUAL_TRIGGER
+
+# Manual trigger job for testing
+manual_claude_trigger:
+  <<: *setup_template
+  stage: execute
+  script:
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - export PATH="$HOME/.local/bin:$PATH"
+    - export GITLAB_CI_MODE="true"
+    - export PLATFORM="gitlab"
+    - export CLAUDE_MANUAL_TRIGGER="true"
+    # Use provided prompt or default
+    - export PROMPT="${CLAUDE_PROMPT:-Please review this repository and provide suggestions for improvement.}"
+    # Run the full pipeline
+    - bun run src/entrypoints/prepare.ts
+    - cd base-action && bun install && cd ..
+    - bun run base-action/src/index.ts
+  when: manual
+  allow_failure: true

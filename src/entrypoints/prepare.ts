@@ -3,13 +3,16 @@
 /**
  * Prepare the Claude action by checking trigger conditions, verifying human actor,
  * and creating the initial tracking comment
+ * Supports both GitHub Actions and GitLab CI environments
  */
 
 import * as core from "@actions/core";
 import { setupGitHubToken } from "../github/token";
+import { setupGitLabToken } from "../gitlab/token";
 import { checkWritePermissions } from "../github/validation/permissions";
 import { createOctokit } from "../github/api/client";
 import { parseGitHubContext, isEntityContext } from "../github/context";
+import { parseGitLabContext, isGitLabCI } from "../gitlab/context";
 import { getMode } from "../modes/registry";
 import { prepare } from "../prepare";
 import { collectActionInputsPresence } from "./collect-inputs";
@@ -18,74 +21,117 @@ async function run() {
   try {
     collectActionInputsPresence();
 
-    // Parse GitHub context first to enable mode detection
-    const context = parseGitHubContext();
-
-    // Auto-detect mode based on context
-    const mode = getMode(context);
-
-    // Setup GitHub token
-    const githubToken = await setupGitHubToken();
-    const octokit = createOctokit(githubToken);
-
-    // Step 3: Check write permissions (only for entity contexts)
-    if (isEntityContext(context)) {
-      // Check if github_token was provided as input (not from app)
-      const githubTokenProvided = !!process.env.OVERRIDE_GITHUB_TOKEN;
-      const hasWritePermissions = await checkWritePermissions(
-        octokit.rest,
-        context,
-        context.inputs.allowedNonWriteUsers,
-        githubTokenProvided,
-      );
-      if (!hasWritePermissions) {
-        throw new Error(
-          "Actor does not have write permissions to the repository",
-        );
+    // Detect platform and parse appropriate context
+    const isGitLab = isGitLabCI();
+    
+    if (isGitLab) {
+      // GitLab CI mode
+      console.log("Detected GitLab CI environment");
+      const context = parseGitLabContext();
+      
+      // Auto-detect mode based on context
+      const mode = getMode(context as any); // Type compatibility for now
+      
+      // Setup GitLab token
+      const gitlabToken = await setupGitLabToken();
+      
+      // For GitLab, we'll assume permissions are handled by the CI token
+      // TODO: Add GitLab-specific permission checking if needed
+      
+      // Check trigger conditions
+      const containsTrigger = mode.shouldTrigger(context as any);
+      
+      if (!containsTrigger) {
+        console.log("No trigger condition met, skipping Claude execution");
+        core.setOutput("contains_trigger", "false");
+        return;
       }
-    }
-
-    // Check trigger conditions
-    const containsTrigger = mode.shouldTrigger(context);
-
-    // Debug logging
-    console.log(`Mode: ${mode.name}`);
-    console.log(`Context prompt: ${context.inputs?.prompt || "NO PROMPT"}`);
-    console.log(`Trigger result: ${containsTrigger}`);
-
-    // Set output for action.yml to check
-    core.setOutput("contains_trigger", containsTrigger.toString());
-
-    if (!containsTrigger) {
-      console.log("No trigger found, skipping remaining steps");
-      // Still set github_token output even when skipping
-      core.setOutput("github_token", githubToken);
-      return;
-    }
-
-    // Step 5: Use the new modular prepare function
-    const result = await prepare({
-      context,
-      octokit,
-      mode,
-      githubToken,
-    });
-
-    // MCP config is handled by individual modes (tag/agent) and included in their claude_args output
-
-    // Expose the GitHub token (Claude App token) as an output
-    core.setOutput("github_token", githubToken);
-
-    // Step 6: Get system prompt from mode if available
-    if (mode.getSystemPrompt) {
-      const modeContext = mode.prepareContext(context, {
-        commentId: result.commentId,
-        baseBranch: result.branchInfo.baseBranch,
-        claudeBranch: result.branchInfo.claudeBranch,
+      
+      console.log("Trigger condition met, preparing GitLab execution");
+      core.setOutput("contains_trigger", "true");
+      
+      // Prepare for GitLab execution
+      await prepare({
+        token: gitlabToken,
+        context: context as any,
+        mode,
+        platform: "gitlab"
       });
-      const systemPrompt = mode.getSystemPrompt(modeContext);
-      if (systemPrompt) {
-        core.exportVariable("APPEND_SYSTEM_PROMPT", systemPrompt);
+      
+    } else {
+      // GitHub Actions mode (existing logic)
+      console.log("Detected GitHub Actions environment");
+      
+      // Parse GitHub context first to enable mode detection
+      const context = parseGitHubContext();
+
+      // Auto-detect mode based on context
+      const mode = getMode(context);
+
+      // Setup GitHub token
+      const githubToken = await setupGitHubToken();
+      const octokit = createOctokit(githubToken);
+
+      // Step 3: Check write permissions (only for entity contexts)
+      if (isEntityContext(context)) {
+        // Check if github_token was provided as input (not from app)
+        const githubTokenProvided = !!process.env.OVERRIDE_GITHUB_TOKEN;
+        const hasWritePermissions = await checkWritePermissions(
+          octokit.rest,
+          context,
+          context.inputs.allowedNonWriteUsers,
+          githubTokenProvided,
+        );
+        if (!hasWritePermissions) {
+          throw new Error(
+            "Actor does not have write permissions to the repository",
+          );
+        }
+      }
+
+      // Check trigger conditions
+      const containsTrigger = mode.shouldTrigger(context);
+
+      // Debug logging
+      console.log(`Mode: ${mode.name}`);
+      console.log(`Context prompt: ${context.inputs?.prompt || "NO PROMPT"}`);
+      console.log(`Trigger result: ${containsTrigger}`);
+
+      // Set output for action.yml to check
+      core.setOutput("contains_trigger", containsTrigger.toString());
+
+      if (!containsTrigger) {
+        console.log("No trigger found, skipping remaining steps");
+        // Still set github_token output even when skipping
+        core.setOutput("github_token", githubToken);
+        return;
+      }
+
+      // Step 5: Use the new modular prepare function
+      const result = await prepare({
+        context,
+        octokit,
+        mode,
+        githubToken,
+        platform: "github"
+      });
+
+      // MCP config is handled by individual modes (tag/agent) and included in their claude_args output
+
+      // Expose the GitHub token (Claude App token) as an output
+      core.setOutput("github_token", githubToken);
+
+      // Step 6: Get system prompt from mode if available
+      if (mode.getSystemPrompt) {
+        const modeContext = mode.prepareContext(context, {
+          commentId: result.commentId,
+          baseBranch: result.branchInfo.baseBranch,
+          claudeBranch: result.branchInfo.claudeBranch,
+        });
+        const systemPrompt = mode.getSystemPrompt(modeContext);
+        if (systemPrompt) {
+          core.exportVariable("APPEND_SYSTEM_PROMPT", systemPrompt);
+        }
       }
     }
   } catch (error) {
